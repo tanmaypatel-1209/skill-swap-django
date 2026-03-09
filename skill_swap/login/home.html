@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Skill Swap</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+
+        body { 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            height: 100vh;
+            overflow: hidden; /* Prevent full body scroll */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- BACKGROUND SHAPES --- */
+        .bg-shape { position: fixed; border-radius: 50%; z-index: -1; filter: blur(60px); }
+        .shape1 { height: 400px; width: 400px; background: rgba(35, 162, 246, 0.4); top: -100px; left: -100px; }
+        .shape2 { height: 300px; width: 300px; background: rgba(255, 81, 47, 0.3); bottom: -50px; right: -50px; }
+
+        /* --- DASHBOARD CONTAINER --- */
+        .dashboard-container {
+            width: 95%;
+            max-width: 1400px;
+            height: 90vh;
+            display: flex;
+            gap: 25px;
+        }
+
+        /* --- LEFT SIDEBAR (My Profile) --- */
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .profile-img-container {
+            position: relative;
+            width: 120px; height: 120px;
+            margin: 0 auto 15px auto;
+        }
+
+        .my-pic {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .online-dot {
+            width: 18px; height: 18px;
+            background: #2ecc71; border: 3px solid white;
+            border-radius: 50%;
+            position: absolute; bottom: 5px; right: 5px;
+        }
+
+        .my-name { font-size: 22px; font-weight: 700; color: #333; }
+        .my-email { font-size: 13px; color: #777; margin-bottom: 20px; }
+
+        .sidebar-section { text-align: left; margin-top: 20px; padding-left: 10px; }
+        .sidebar-label { font-size: 12px; font-weight: 700; color: #999; text-transform: uppercase; margin-bottom: 8px; display: block; }
+        
+        /* Badges for sidebar */
+        .badge { 
+            display: inline-block; padding: 6px 14px; margin: 3px; 
+            border-radius: 20px; font-size: 12px; font-weight: 600; 
+        }
+        .badge-teach { background: rgba(35, 162, 246, 0.15); color: #1845ad; }
+        .badge-learn { background: rgba(255, 81, 47, 0.15); color: #d63031; }
+
+        .logout-btn {
+            margin-top: auto; /* Pushes button to bottom */
+            background: #fff; color: #ff4757;
+            border: 1px solid #ff4757;
+            padding: 12px; border-radius: 10px;
+            text-decoration: none; font-weight: 600;
+            transition: 0.3s;
+        }
+        .logout-btn:hover { background: #ff4757; color: white; }
+
+        /* --- RIGHT FEED (Matches) --- */
+        .feed {
+            flex: 1; /* Takes remaining space */
+            display: flex; flex-direction: column;
+            overflow: hidden; /* Helper for scroll */
+        }
+
+        .feed-header {
+            margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .feed-title { font-size: 24px; font-weight: 700; color: #333; }
+        
+        .search-box {
+            background: rgba(255,255,255,0.6);
+            padding: 10px 20px; border-radius: 30px;
+            display: flex; align-items: center;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        .search-box input { border: none; background: transparent; outline: none; margin-left: 10px; width: 200px; }
+
+        /* SCROLLABLE GRID AREA */
+        .cards-grid {
+            flex: 1; /* Fills height */
+            overflow-y: auto; /* Allows scrolling */
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Responsive Grid */
+            gap: 20px;
+            padding-right: 10px; /* Space for scrollbar */
+        }
+
+        /* Custom Scrollbar */
+        .cards-grid::-webkit-scrollbar { width: 6px; }
+        .cards-grid::-webkit-scrollbar-track { background: transparent; }
+        .cards-grid::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+
+        /* USER CARDS */
+        .match-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.6);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+        }
+        .match-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); }
+
+        .card-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 15px; }
+        .card-name { font-size: 18px; font-weight: 600; color: #333; }
+        .card-loc { font-size: 12px; color: #777; margin-bottom: 15px; }
+        
+        .skill-row { width: 100%; display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; color: #555; }
+        .skill-val { font-weight: 600; color: #333; }
+
+        .connect-btn {
+            margin-top: 15px; width: 100%;
+            background: linear-gradient(to right, #23a2f6, #1845ad);
+            color: white; border: none; padding: 10px;
+            border-radius: 8px; cursor: pointer; font-weight: 500;
+        }
+        .connect-btn:hover { opacity: 0.9; }
+
+    </style>
+</head>
+<body>
+    <div class="bg-shape shape1"></div>
+    <div class="bg-shape shape2"></div>
+
+    <div class="dashboard-container">
+        
+        <aside class="sidebar">
+            <div class="profile-img-container">
+                {% if user_pic %}
+                    <img src="{{ user_pic }}" alt="Profile" class="my-pic">
+                {% else %}
+                    <img src="https://cdn-icons-png.flaticon.com/512/149/149071.png" alt="Default" class="my-pic">
+                {% endif %}
+                <div class="online-dot"></div>
+            </div>
+            
+            <div class="my-name">{{ user_name }}</div>
+            <div class="my-email">{{ user_email }}</div>
+
+            <div class="sidebar-section">
+                <span class="sidebar-label">I Can Teach</span>
+                <span class="badge badge-teach">{{ my_teach|default:"Not set" }}</span>
+            </div>
+            
+            <div class="sidebar-section">
+                <span class="sidebar-label">I Want To Learn</span>
+                <span class="badge badge-learn">{{ my_learn|default:"Not set" }}</span>
+            </div>
+
+            <a href="{% url 'login' %}" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </aside>
+
+
+        <main class="feed">
+            <div class="feed-header">
+                <div class="feed-title">Find Skills</div>
+                
+                <form method="GET" action="{% url 'home' %}" class="search-box">
+                    <button type="submit" style="border:none; background:none; cursor:pointer;">
+                        <i class="fas fa-search" style="color: #666;"></i>
+                    </button>
+                    <input type="text" name="q" placeholder="Search Python, Math, etc..." value="{{ request.GET.q }}">
+                </form>
+            </div>
+
+            <div class="cards-grid">
+                
+                {% for match in matches %}
+                <div class="match-card">
+                    {% if match.4 %} 
+                        <img src="{{ match.4 }}" class="card-img" alt="User">
+                    {% else %}
+                        <img src="https://randomuser.me/api/portraits/lego/1.jpg" class="card-img" alt="Default">
+                    {% endif %}
+
+                    <div class="card-name">{{ match.0 }}</div> <div class="card-loc"><i class="fas fa-map-marker-alt"></i> {{ match.1 }}</div> <div class="skill-row">
+                        <span>Teaches:</span> <span class="skill-val" style="color:#1845ad;">{{ match.2 }}</span>
+                    </div>
+                    <div class="skill-row">
+                        <span>Wants:</span> <span class="skill-val" style="color:#d63031;">{{ match.3 }}</span>
+                    </div>
+                    <button class="connect-btn">Connect</button>
+                </div>
+                
+                {% empty %}
+                <div style="text-align:center; padding: 20px; color:#666; width: 100%;">
+                    <i class="fas fa-search" style="font-size: 40px; margin-bottom: 10px; opacity:0.5;"></i>
+                    <p>No users found matching that skill.</p>
+                </div>
+                {% endfor %}
+
+            </div>
+        </main>
+    </div>
+</body>
+</html>

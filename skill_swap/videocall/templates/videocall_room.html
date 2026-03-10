@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SkillSwap | Mobile Video</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-dark: #1a1a1a;
+            --control-bg: rgba(255, 255, 255, 0.15); /* Slightly lighter for visibility outdoors */
+            --control-hover: rgba(255, 255, 255, 0.25);
+            --red: #ea4335;
+            --red-hover: #d93025;
+            --blue: #4285f4; 
+            --green: #2ecc71;
+            --primary: #6c5ce7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: white;
+            height: 100vh;
+            height: 100dvh; /* Dynamic Viewport Height for mobile browsers */
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- VIDEO LAYOUT --- */
+        .main-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Fills screen on mobile */
+            display: block;
+        }
+
+        /* Local Video (Floating PIP) */
+        .local-video-wrapper {
+            position: absolute;
+            bottom: 120px; /* Desktop default */
+            right: 30px;
+            width: 280px;
+            height: 160px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 2px solid rgba(255,255,255,0.2);
+            background: #2d3436;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); 
+        }
+        
+        #localVideo.screen-share, #localVideo.back-camera {
+            transform: scaleX(1); /* No mirror for back camera or screen share */
+        }
+
+        /* Overlay Info */
+        .call-info {
+            position: absolute;
+            top: 40px; /* Lowered slightly for mobile notches */
+            left: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+            border: 1px solid rgba(255,255,255,0.1);
+            max-width: 80%; /* Prevent overflow on small screens */
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background-color: #f1c40f; 
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 10px #f1c40f;
+        }
+        .status-dot.connected { background-color: var(--green); box-shadow: 0 0 10px var(--green); }
+
+        .call-info-text {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .partner-name {
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .timer {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+
+        /* --- CONTROLS BAR --- */
+        .controls-bar {
+            position: absolute;
+            bottom: 30px;
+            display: flex;
+            gap: 15px;
+            background: rgba(26, 26, 26, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 15px 25px;
+            border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 20;
+            
+            /* Mobile Safe Area Logic */
+            bottom: max(30px, env(safe-area-inset-bottom) + 10px);
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: var(--control-bg);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s ease; /* Faster transition for touch */
+        }
+
+        .control-btn:active { transform: scale(0.95); }
+
+        .control-btn.active-off { background: var(--red); }
+        .control-btn.sharing { background: var(--blue); }
+        
+        .btn-end { background: var(--red); width: 60px; border-radius: 30px; }
+        
+        /* Tooltip (Only show on hover devices, hide on touch) */
+        @media (hover: hover) {
+            .control-btn::after {
+                content: attr(data-tooltip);
+                position: absolute;
+                bottom: 60px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0,0,0,0.8);
+                padding: 5px 10px;
+                border-radius: 5px;
+                font-size: 12px;
+                opacity: 0;
+                pointer-events: none;
+                transition: 0.2s;
+                white-space: nowrap;
+            }
+            .control-btn:hover::after { opacity: 1; bottom: 65px; }
+        }
+
+        /* --- MOBILE RESPONSIVE TWEAKS --- */
+        @media (max-width: 768px) {
+            /* Move Local Video to Top Right for Mobile */
+            .local-video-wrapper {
+                top: 20px; 
+                right: 20px;
+                bottom: auto; /* Unset bottom */
+                width: 100px; /* Smaller width */
+                height: 150px; /* Portrait aspect ratio */
+                box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            }
+
+            .controls-bar {
+                width: 90%;
+                padding: 12px 15px;
+                gap: 8px; /* Tighter gap */
+                justify-content: space-evenly;
+            }
+
+            .control-btn {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+            
+            /* Hide Screen Share on Mobile (Usually buggy/unsupported in mobile browsers) 
+               But we show Flip Camera instead */
+            #btn-screen { display: none; }
+            #btn-flip { display: flex !important; }
+        }
+
+        /* Flip Camera button (Hidden by default on Desktop) */
+        #btn-flip { display: none; }
+
+    </style>
+</head>
+<body>
+
+    <input type="hidden" id="my-peer-id" value="{{ my_peer_id }}">
+    <input type="hidden" id="remote-peer-id" value="{{ remote_peer_id }}">
+
+    <div class="main-container">
+        <video id="remoteVideo" autoplay playsinline></video>
+        
+        <div class="call-info">
+            <div class="status-dot" id="status-dot"></div>
+            <div class="call-info-text">
+                <div class="partner-name">{{ partner_email }}</div>
+                <div class="timer" id="call-timer">00:00</div>
+            </div>
+        </div>
+
+        <div class="local-video-wrapper" id="localVideoWrapper">
+            <video id="localVideo" autoplay playsinline muted></video>
+        </div>
+
+        <div class="controls-bar">
+            <button class="control-btn" id="btn-audio" onclick="toggleAudio()" data-tooltip="Mute">
+                <i class="fas fa-microphone"></i>
+            </button>
+            
+            <button class="control-btn" id="btn-video" onclick="toggleVideo()" data-tooltip="Camera">
+                <i class="fas fa-video"></i>
+            </button>
+
+            <button class="control-btn" id="btn-screen" onclick="toggleScreenShare()" data-tooltip="Share Screen">
+                <i class="fas fa-desktop"></i>
+            </button>
+
+            <button class="control-btn" id="btn-flip" onclick="flipCamera()" data-tooltip="Flip Camera">
+                <i class="fas fa-camera-rotate"></i>
+            </button>
+
+            <button class="control-btn" id="btn-connect" onclick="callPartner()" style="background: var(--green);" data-tooltip="Start">
+                <i class="fas fa-phone"></i>
+            </button>
+
+            <button class="control-btn btn-end" onclick="endCall()" data-tooltip="End">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+       
+        const myPeerId = document.getElementById('my-peer-id').value;
+        const remotePeerId = document.getElementById('remote-peer-id').value;
+        
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const statusDot = document.getElementById('status-dot');
+        const timerDisplay = document.getElementById('call-timer');
+        const btnConnect = document.getElementById('btn-connect');
+        const btnScreen = document.getElementById('btn-screen');
+
+        let peer;
+        let localStream;    
+        let currentCall;
+        let timerInterval;
+        let seconds = 0;
+        let isScreenSharing = false;
+        
+        // Camera handling vars
+        let currentFacingMode = 'user'; // 'user' (front) or 'environment' (back)
+        let wakeLock = null; // To keep screen awake
+
+        // --- INITIALIZATION ---
+        function init() {
+            peer = new Peer(myPeerId);
+
+            peer.on('open', (id) => {
+                console.log("My Peer ID: " + id);
+                startLocalVideo();
+                requestWakeLock(); // Keep screen on
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                if (err.type === 'peer-unavailable') {
+                    showToast("Partner is offline.", "error");
+                } else {
+                    showToast("Error: " + err.type, "error");
+                }
+            });
+
+            peer.on('call', (call) => {
+                // Better mobile UX: Use a stylized toast/modal or simple confirm
+                if (confirm(`Incoming call from ${"{{ partner_email }}"}. Answer?`)) {
+                    call.answer(localStream);
+                    handleStream(call);
+                }
+            });
+        }
+
+        // --- STREAM HANDLING & CAMERA FLIP ---
+        async function startLocalVideo() {
+            try {
+                const constraints = {
+                    video: { facingMode: currentFacingMode },
+                    audio: true
+                };
+                
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                localStream = stream;
+                localVideo.srcObject = stream;
+                
+                // Update mirror effect based on camera
+                if (currentFacingMode === 'user') {
+                    localVideo.classList.remove('back-camera');
+                } else {
+                    localVideo.classList.add('back-camera');
+                }
+                
+                return stream;
+            } catch (err) {
+                console.error(err);
+                showToast("Camera access denied", "error");
+            }
+        }
+
+        async function flipCamera() {
+            if (isScreenSharing) return; // Disable flip if sharing screen
+
+            // Toggle mode
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            
+            // 1. Stop current video track
+            if (localStream) {
+                localStream.getVideoTracks()[0].stop();
+            }
+
+            // 2. Get new stream
+            const newStream = await startLocalVideo();
+            
+            // 3. Replace track in current Peer Connection
+            if (currentCall && currentCall.peerConnection) {
+                const videoTrack = newStream.getVideoTracks()[0];
+                const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(videoTrack);
+                }
+            }
+        }
+
+        function callPartner() {
+            if (!localStream) return showToast("Camera not ready...", "error");
+            
+            showToast("Calling partner...", "info");
+            const call = peer.call(remotePeerId, localStream);
+            
+            if (!call) return; 
+            handleStream(call);
+        }
+
+        function handleStream(call) {
+            currentCall = call;
+            
+            call.on('stream', (userVideoStream) => {
+                remoteVideo.srcObject = userVideoStream;
+                statusDot.classList.add('connected');
+                btnConnect.style.display = 'none'; 
+                startTimer();
+                showToast("Connected!", "success");
+            });
+
+            call.on('close', () => endCallUI());
+            call.on('error', () => endCallUI());
+        }
+
+        // --- SCREEN WAKE LOCK (Mobile Feature) ---
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Screen Wake Lock active');
+                }
+            } catch (err) {
+                console.log(`${err.name}, ${err.message}`);
+            }
+        }
+
+        // --- FEATURE: SCREEN SHARING ---
+        async function toggleScreenShare() {
+            if (isScreenSharing) {
+                stopScreenShare();
+            } else {
+                startScreenShare();
+            }
+        }
+
+        async function startScreenShare() {
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenTrack = screenStream.getVideoTracks()[0];
+
+                if (currentCall && currentCall.peerConnection) {
+                    const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                    if (sender) sender.replaceTrack(screenTrack);
+                }
+
+                localVideo.srcObject = screenStream;
+                localVideo.classList.add('screen-share');
+                
+                isScreenSharing = true;
+                btnScreen.classList.add('sharing');
+                
+                screenTrack.onended = () => stopScreenShare();
+
+            } catch (err) {
+                console.error(err);
+                showToast("Cancelled screen share", "info");
+            }
+        }
+
+        async function stopScreenShare() {
+            if (!isScreenSharing) return;
+
+            // Revert to camera
+            const cameraStream = await startLocalVideo(); // Restart camera stream
+            const cameraTrack = cameraStream.getVideoTracks()[0];
+
+            if (currentCall && currentCall.peerConnection) {
+                const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                if (sender) sender.replaceTrack(cameraTrack);
+            }
+
+            isScreenSharing = false;
+            btnScreen.classList.remove('sharing');
+            localVideo.classList.remove('screen-share');
+        }
+
+        // --- BUTTON ACTIONS ---
+        function toggleAudio() {
+            const audioTrack = localStream.getAudioTracks()[0];
+            const btn = document.getElementById('btn-audio');
+            const icon = btn.querySelector('i');
+
+            if (audioTrack.enabled) {
+                audioTrack.enabled = false;
+                btn.classList.add('active-off');
+                icon.className = 'fas fa-microphone-slash';
+            } else {
+                audioTrack.enabled = true;
+                btn.classList.remove('active-off');
+                icon.className = 'fas fa-microphone';
+            }
+        }
+
+        function toggleVideo() {
+            const videoTrack = localStream.getVideoTracks()[0];
+            const btn = document.getElementById('btn-video');
+            const icon = btn.querySelector('i');
+
+            if (videoTrack.enabled) {
+                videoTrack.enabled = false;
+                btn.classList.add('active-off');
+                icon.className = 'fas fa-video-slash';
+            } else {
+                videoTrack.enabled = true;
+                btn.classList.remove('active-off');
+                icon.className = 'fas fa-video';
+            }
+        }
+
+        function endCall() {
+            if (currentCall) currentCall.close();
+            if (peer) peer.destroy();
+            if (wakeLock) wakeLock.release();
+            window.location.href = "/dashboard/";
+        }
+
+        function endCallUI() {
+            statusDot.classList.remove('connected');
+            remoteVideo.srcObject = null;
+            stopTimer();
+            showToast("Call Ended", "info");
+            setTimeout(() => { window.location.href = "/dashboard/"; }, 2000);
+        }
+
+        // --- UTILS ---
+        function startTimer() {
+            seconds = 0;
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds++;
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                timerDisplay.innerText = 
+                    (mins < 10 ? "0" + mins : mins) + ":" + 
+                    (secs < 10 ? "0" + secs : secs);
+            }, 1000);
+        }
+
+        function stopTimer() { clearInterval(timerInterval); }
+
+        function showToast(msg, type) {
+            const toast = document.createElement('div');
+            let color = '#3498db';
+            if (type === 'error') color = '#e74c3c';
+            if (type === 'success') color = '#2ecc71';
+            
+            toast.style.cssText = `
+                position: fixed; top: 20px; right: 20px;
+                background: ${color};
+                color: white; padding: 12px 25px; border-radius: 8px;
+                font-weight: 500; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                transform: translateX(100%); transition: 0.3s ease; z-index: 100;
+                display: flex; align-items: center; gap: 10px; font-size: 14px;
+            `;
+            
+            // Adjust for mobile top spacing
+            if (window.innerWidth < 768) toast.style.top = "60px";
+
+            let icon = type === 'error' ? '<i class="fas fa-exclamation-circle"></i>' : 
+                       (type === 'success' ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-info-circle"></i>');
+            
+            toast.innerHTML = `${icon} <span>${msg}</span>`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.style.transform = 'translateX(0)', 10);
+            setTimeout(() => {
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
